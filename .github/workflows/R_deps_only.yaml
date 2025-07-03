@@ -1,0 +1,95 @@
+# .github/workflows/R-CMD-check.yaml
+on:
+  push:
+    branches: [main, master, '**']
+  pull_request:
+    branches: [main, master, '**']
+
+name: R-CMD-check
+
+jobs:
+  R-CMD-check:
+    runs-on: ${{ matrix.config.os }}
+
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # macOS omitted per your last working version
+          - {os: windows-latest, r: 'release',  rtools: '42'}
+          - {os: ubuntu-22.04,  r: 'devel',    rtools: ''}
+          - {os: ubuntu-22.04,  r: 'release',  rtools: ''}
+          - {os: ubuntu-22.04,  r: 'oldrel-1', rtools: ''}
+
+    env:
+      GITHUB_PAT:       ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: n1hility/cancel-previous-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: r-lib/actions/setup-pandoc@v2
+        with:
+          pandoc-version: "latest"
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version:     ${{ matrix.config.r }}
+          rtools-version: ${{ matrix.config.rtools }}
+          use-public-rspm: true
+
+      # ── Cache R package library ─────────────────────────────────────────
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-R-${{ matrix.config.r }}-pkgs
+          restore-keys: |
+            ${{ runner.os }}-R-${{ matrix.config.r }}-
+
+      # ── Install R dependencies (with cache) ──────────────────────────────
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache: packages
+          dependencies: NA
+          extra-packages: |
+            # Core Imports for brms itself:
+            stan-dev/cmdstanr
+            rstan
+            bayesplot
+            bridgesampling
+            future
+            future.apply
+            nleqslv
+            coda
+
+            # Minimal plot helper used in examples under --ignore-vignettes:
+            colorspace
+
+            # If you have any test files:
+            testthat
+
+
+      # ── Cache CmdStan build ──────────────────────────────────────────────
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cmdstan
+          key: cmdstan-${{ runner.os }}-${{ matrix.config.r }}
+
+      # ── Build CmdStan (skipped on cache hit) ─────────────────────────────
+      - name: Build CmdStan
+        run: |
+          cmdstanr::check_cmdstan_toolchain(fix = TRUE)
+          cmdstanr::install_cmdstan(cores = parallel::detectCores())
+        shell: Rscript {0}
+
+      # ── Run R CMD check ──────────────────────────────────────────────────
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          build_args: 'c("--no-manual", "--no-build-vignettes")'
+          args:       'c("--no-manual", "--as-cran", "--ignore-vignettes")'
