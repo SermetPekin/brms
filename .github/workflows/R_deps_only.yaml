@@ -67,13 +67,8 @@ jobs:
             future.apply
             nleqslv
             coda
-
-            # Minimal plot helper used in examples under --ignore-vignettes:
             colorspace
-
-            # If you have any test files:
             testthat
-
 
       # ── Cache CmdStan build ──────────────────────────────────────────────
       - uses: actions/cache@v4
