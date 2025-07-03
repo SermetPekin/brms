@@ -1,14 +1,8 @@
 on:
   push:
-    branches:
-      - main
-      - master
-      - '**'
+    branches: [main, master, '**']
   pull_request:
-    branches:
-      - main
-      - master
-      - '**'
+    branches: [main, master, '**']
 
 name: R-CMD-check
 
@@ -49,30 +43,19 @@ jobs:
           rtools-version: ${{ matrix.config.rtools }}
           use-public-rspm: true
 
-      # ── 1. Install package dependencies ─────────────────────────────
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          dependencies: NA
-          repos: |
-            https://mc-stan.r-universe.dev
-            https://cran.rstudio.com
-          extra-packages: |
-            colorspace
-            cmdstanr
-            R.rsp
-            knitr
-            rcmdcheck
-            rmarkdown
-            testthat
-            projpred
-            priorsense
-            RWiener
-            rtdists
-            extraDistr
-            statmod
-            diffobj
+      # ── 1. Install R package dependencies via pak ────────────────────────
+      - name: Install R deps via pak
+        run: |
+          install.packages("pak", repos = "https://cran.rstudio.com")
+          pak::repo_add("stan-dev", "https://mc-stan.r-universe.dev")
+          pak::pkg_install(c(
+            "colorspace", "cmdstanr", "R.rsp", "knitr", "rcmdcheck",
+            "rmarkdown", "testthat", "projpred", "priorsense", "RWiener",
+            "rtdists", "extraDistr", "statmod", "diffobj"
+          ))
+        shell: Rscript {0}
 
-      # ── 2. Cache & build CmdStan ────────────────────────────────────
+      # ── 2. Cache & build CmdStan ─────────────────────────────────────────
       - name: Cache CmdStan
         uses: actions/cache@v4
         with:
@@ -85,13 +68,13 @@ jobs:
           cmdstanr::install_cmdstan(cores = parallel::detectCores())
         shell: Rscript {0}
 
-      # ── 3. Run R CMD check ──────────────────────────────────────────
+      # ── 3. Run R CMD check ───────────────────────────────────────────────
       - uses: r-lib/actions/check-r-package@v2
         with:
           build_args: 'c("--no-manual", "--no-build-vignettes")'
           args: 'c("--no-manual", "--as-cran", "--ignore-vignettes")'
 
-      # ── 4. Upload check artefacts ───────────────────────────────────
+      # ── 4. Upload check artefacts ────────────────────────────────────────
       - name: Upload R CMD check results
         if: always()
         uses: actions/upload-artifact@v4
