@@ -1,8 +1,15 @@
+# .github/workflows/R-CMD-check.yaml
 on:
   push:
-    branches: [main, master, '**']
+    branches:
+      - main
+      - master
+      - '**'
   pull_request:
-    branches: [main, master, '**']
+    branches:
+      - main
+      - master
+      - '**'
 
 name: R-CMD-check
 
@@ -15,16 +22,16 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: macOS-latest,   r: 'release',  rtools: ''}
-          - {os: windows-latest, r: 'release',  rtools: '42'}
-          - {os: ubuntu-22.04,   r: 'devel',    rtools: ''}
-          - {os: ubuntu-22.04,   r: 'release',  rtools: ''}
-          - {os: ubuntu-22.04,   r: 'oldrel-1', rtools: ''}
+          - { os: macOS-latest,   r: 'release',  rtools: '' }
+          - { os: windows-latest, r: 'release',  rtools: '42' }
+          - { os: ubuntu-22.04,   r: 'devel',    rtools: '' }
+          - { os: ubuntu-22.04,   r: 'release',  rtools: '' }
+          - { os: ubuntu-22.04,   r: 'oldrel-1', rtools: '' }
 
     env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_PAT:       ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
-      NOT_CRAN: true
+      NOT_CRAN:         true
 
     steps:
       - uses: actions/checkout@v4
@@ -39,23 +46,35 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          r-version: ${{ matrix.config.r }}
+          r-version:     ${{ matrix.config.r }}
           rtools-version: ${{ matrix.config.rtools }}
           use-public-rspm: true
 
-      # ── 1. Install R package dependencies via pak ────────────────────────
+      # ── 1. Install R package dependencies via pak ─────────────────────────
       - name: Install R deps via pak
         run: |
           install.packages("pak", repos = "https://cran.rstudio.com")
-          pak::repo_add("stan-dev", "https://mc-stan.r-universe.dev")
           pak::pkg_install(c(
-            "colorspace", "cmdstanr", "R.rsp", "knitr", "rcmdcheck",
-            "rmarkdown", "testthat", "projpred", "priorsense", "RWiener",
-            "rtdists", "extraDistr", "statmod", "diffobj"
+            # CRAN packages needed for check/tests
+            "colorspace",
+            "R.rsp",
+            "knitr",
+            "rcmdcheck",
+            "rmarkdown",
+            "testthat",
+            "projpred",
+            "priorsense",
+            "RWiener",
+            "rtdists",
+            "extraDistr",
+            "statmod",
+            "diffobj",
+            # Stan backend from r-universe
+            "stan-dev/cmdstanr"
           ))
         shell: Rscript {0}
 
-      # ── 2. Cache & build CmdStan ─────────────────────────────────────────
+      # ── 2. Cache & build CmdStan ───────────────────────────────────────────
       - name: Cache CmdStan
         uses: actions/cache@v4
         with:
@@ -68,13 +87,13 @@ jobs:
           cmdstanr::install_cmdstan(cores = parallel::detectCores())
         shell: Rscript {0}
 
-      # ── 3. Run R CMD check ───────────────────────────────────────────────
+      # ── 3. Run R CMD check ─────────────────────────────────────────────────
       - uses: r-lib/actions/check-r-package@v2
         with:
           build_args: 'c("--no-manual", "--no-build-vignettes")'
-          args: 'c("--no-manual", "--as-cran", "--ignore-vignettes")'
+          args:       'c("--no-manual", "--as-cran", "--ignore-vignettes")'
 
-      # ── 4. Upload check artefacts ────────────────────────────────────────
+      # ── 4. Upload check artefacts ──────────────────────────────────────────
       - name: Upload R CMD check results
         if: always()
         uses: actions/upload-artifact@v4
