@@ -1,10 +1,9 @@
-# Workflow derived from https://github.com/r-lib/actions/tree/master/examples
-# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+# .github/workflows/R-CMD-check.yaml
 on:
   push:
     branches: [main, master, '**']
   pull_request:
-    branches: [main, master , '**']
+    branches: [main, master, '**']
 
 name: R-CMD-check
 
@@ -18,20 +17,19 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          # - {os: macOS-latest,   r: 'release', rtools: ''}
-          - {os: windows-latest, r: 'release', rtools: '42'}
-          # some issues occured on ubuntu-latest related to pandoc-citeproc
-          # https://forum.posit.co/t/github-action-e-package-pandoc-citeproc-has-no-installation-candidate/197536
-          - {os: ubuntu-22.04, r: 'devel', rtools: ''}
-          - {os: ubuntu-22.04, r: 'release', rtools: ''}
-          - {os: ubuntu-22.04, r: 'oldrel-1', rtools: ''}
+          # macOS omitted per your last working version
+          - {os: windows-latest, r: 'release',  rtools: '42'}
+          - {os: ubuntu-22.04,  r: 'devel',    rtools: ''}
+          - {os: ubuntu-22.04,  r: 'release',  rtools: ''}
+          - {os: ubuntu-22.04,  r: 'oldrel-1', rtools: ''}
 
     env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_PAT:       ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: n1hility/cancel-previous-runs@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -42,16 +40,22 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          r-version: ${{ matrix.config.r }}
+          r-version:     ${{ matrix.config.r }}
           rtools-version: ${{ matrix.config.rtools }}
-          http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
-      # As cmdstanr is not yet on CRAN, configure the action to only install the
-      # 'Depends' packages by default and then manually specify the 'Suggests'
-      # packages that are needed for R CMD CHECK
+      # ── Cache R package library ─────────────────────────────────────────
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-R-${{ matrix.config.r }}-pkgs
+          restore-keys: |
+            ${{ runner.os }}-R-${{ matrix.config.r }}-
+
+      # ── Install R dependencies (with cache) ──────────────────────────────
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          cache: packages
           dependencies: NA
           extra-packages: |
             R.rsp
@@ -80,13 +84,21 @@ jobs:
             diffobj
             betareg
 
-      - name: Build Cmdstan
+      # ── Cache CmdStan build ──────────────────────────────────────────────
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cmdstan
+          key: cmdstan-${{ runner.os }}-${{ matrix.config.r }}
+
+      # ── Build CmdStan (skipped on cache hit) ─────────────────────────────
+      - name: Build CmdStan
         run: |
           cmdstanr::check_cmdstan_toolchain(fix = TRUE)
           cmdstanr::install_cmdstan(cores = parallel::detectCores())
         shell: Rscript {0}
 
+      # ── Run R CMD check ──────────────────────────────────────────────────
       - uses: r-lib/actions/check-r-package@v2
         with:
           build_args: 'c("--no-manual", "--no-build-vignettes")'
-          args: 'c("--no-manual", "--as-cran", "--ignore-vignettes")'
+          args:       'c("--no-manual", "--as-cran", "--ignore-vignettes")'
