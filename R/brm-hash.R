@@ -1,52 +1,54 @@
-## ------------------------------------------------------------------
-##  Central digest helper  (internal)
-## ------------------------------------------------------------------
-#' Internal helper: digest wrapper used by all hash methods
+#' Internal helper: Digest wrapper used by all hash methods
 #' @noRd
 .brms_digest <- function(object, algo = "xxhash64") {
-  require_package("digest")
+  .require_package("digest")
   digest::digest(object, algo = algo, serialize = TRUE)
 }
 
-#' Recursively remove attached environments from an object
-#' @keywords internal
-remove_env_attrs <- function(obj) {
-  if (!is.null(attr(obj, ".Environment")))
+#' Internal helper: Recursively remove attached environments from an object
+#' @noRd
+.remove_env_attrs <- function(obj) {
+  if (!is.null(attr(obj, ".Environment"))) {
     attr(obj, ".Environment") <- NULL
-  if (inherits(obj, "formula"))
+  }
+  if (inherits(obj, "formula")) {
     environment(obj) <- emptyenv()
-  if (is.list(obj) || is.pairlist(obj))
-    obj <- lapply(obj, remove_env_attrs)
+  }
+  if (is.list(obj) || is.pairlist(obj)) {
+    obj <- lapply(obj, .remove_env_attrs)
+  }
   obj
 }
 
-## ------------------------------------------------------------------
-##  S3 generic
-## ------------------------------------------------------------------
-#' Class-aware hashing for individual brm() arguments
-#'
-#' Dispatches to methods that normalise and hash each argument according to
-#' its class (formula, family, data.frame, …).  All methods ultimately call
+#' Class-aware hashing for individual \code{brm()} arguments
+#' Dispatches to methods that normalize and hash each argument according to
+#' its class (e.g., formula, family, data.frame). All methods ultimately call
 #' \code{digest::digest()}, but strip environments and reorder components so
 #' that equivalent inputs produce identical hashes.
 #'
-#' @param x   A single argument from a brm() call.
-#' @param ... Passed on to class-specific methods (e.g. \code{algo},
-#'            \code{threshold}).
-#' @return    A character scalar hash.
+#' @param x A single argument from a \code{brm()} call.
+#' @param ... Passed to class-specific methods (e.g., \code{algo}, \code{threshold}).
+#'
+#' @return A character scalar hash.
+#'
 #' @export
-hash_brm_arg <- function(x, ...){
+hash_brm_arg <- function(x, ...) {
   UseMethod("hash_brm_arg")
 }
 
-## ------------------------------------------------------------------
-##  Methods for major classes
-## ------------------------------------------------------------------
+
+#' Hashing method for formula objects
+#' Strips the environment from the formula and hashes its character
+#' representation. Used internally by \code{hash_brm_arg()}.
+#'
+#' @inheritParams hash_brm_arg
+#'
 #' @export
 hash_brm_arg.formula <- function(x, ...) {
   environment(x) <- emptyenv()
   .brms_digest(as.character(x), ...)
 }
+
 
 #' @export
 hash_brm_arg.brmsformula <- function(x, ...) {
@@ -130,70 +132,89 @@ hash_brm_arg.default <- function(x, ...) {
   .brms_digest(remove_env_attrs(x), ...)
 }
 
-#' Stable hash for a set of brm() arguments
+#' Stable hash for a set of \code{brm()} arguments
 #'
-#' @param call **brm_call** object
-#'   define a model (e.g., formula, data, family, prior, …).
-#' @param algo      Digest algorithm passed to \code{digest}.
-#' @return          A character hash key.
+#' Hashes the relevant elements of a \code{brm_call} object in a consistent and
+#' order-independent way, producing a stable identifier for the model definition.
+#'
+#' @param call A \code{brm_call} object defining a model (e.g., formula, data,
+#'   family, prior, etc.).
+#' @param algo Digest algorithm passed to \code{digest::digest()}.
+#'
+#' @return The same \code{brm_call} object, augmented with a \code{$hash} field.
+#'
 #' @export
 hash_brm_call_master <- function(call, algo = "xxhash64") {
-  if (!is.brm_call(call)){
-    stop2("args_list must be a *brm_call* object" )
+  if (!is.brm_call(call)) {
+    stop2("call must be a *brm_call* object")
   }
-  # order
+
   args_list <- call[order(names(call))]
   args_list$mcall <- NULL
   args_list$fit <- NULL
-  #  hash elements
+
   hashed_parts <- lapply(args_list, hash_brm_arg, algo = algo)
-  # for (prop in names(args_list)) {
-  #   e = args_list[[prop]]
-  #
-  #   print(prop)
-  #   print(e)
-  #   print(class(e))
-  #
-  #   hash_brm_arg(e)
-  #
-  # }
-  # packages' versions
+
   brms_version <- packageVersion("brms")
   backend_version <- get_backend_version(call$backend)
-  # collapse the per-argument hashes into one final key
-  call$hash <-   .brms_digest(nlist(hashed_parts,
-                                    brms_version,
-                                    backend_version ) )
+
+  call$hash <- .brms_digest(
+    nlist(
+      hashed_parts,
+      brms_version,
+      backend_version
+    )
+  )
+
   call
 }
 
-#' get version of backend
+#' Internal helper: Get version of backend
+#'
+#' Returns the version of the specified backend used in fitting the model.
+#'
+#' @param backend A character string; either \code{"rstan"}, \code{"cmdstanr"}, or \code{"mock"}.
+#'
+#' @return A version object or character string, depending on backend.
+#'
 #' @noRd
-get_backend_version<- function(backend){
-  if(backend == "rstan" ){
-    v = utils::packageVersion("rstan")
-  }
-  if(backend == "cmdstanr" ){
-    v = cmdstanr::cmdstan_version()
-  }
-  if(backend == "mock" ){
-    v = "0.0.1"
+get_backend_version <- function(backend) {
+  if (backend == "rstan") {
+    v <- utils::packageVersion("rstan")
+  } else if (backend == "cmdstanr") {
+    v <- cmdstanr::cmdstan_version()
+  } else if (backend == "mock") {
+    v <- "0.0.1"
+  } else {
+    stop2("Unknown backend: ", backend)
   }
   v
 }
 
-#' Internal helper: create file argument if file_auto is TRUE
+
+#' Internal helper: Create `file` argument when `file_auto = TRUE`
+#'
+#' Adds a cache filename and sets `file_refit = "on_change"` based on the hash
+#' of the model call. This is used to enable automatic reuse of cached fits.
+#'
+#' @param call A \code{brm_call} object.
+#'
+#' @return The modified \code{brm_call} object with auto-generated file settings.
+#'
 #' @noRd
 create_filename_auto <- function(call) {
   if (!call$file_auto) {
     return(call)
   }
-  # We inform user that we override file or file_refit arguments in case necessary
-  # if (!is.null(call$file) | call$file_refit != 'on_change') {
+
+  # Inform the user that file/file_refit are overwritten if needed
+  # if (!is.null(call$file) || call$file_refit != "on_change") {
   #   message("Since file_auto = TRUE, the file and file_refit arguments were overwritten.")
   # }
+
   call <- hash_brm_call_master(call)
-  call$file <- paste0('cache-brm-result_', call$hash, '.Rds')
+  call$file <- paste0("cache-brm-result_", call$hash, ".Rds")
   call$file_refit <- "on_change"
   call
 }
+
