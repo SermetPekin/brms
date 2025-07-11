@@ -1,3 +1,4 @@
+
 #' Build – but **do not run** – a `brm()` call
 #'
 #' `create_brm_call()` is a wafer-thin wrapper around
@@ -13,7 +14,6 @@
 create_brm_call <- function(...) {
   brm(..., call_only = TRUE)
 }
-
 #' Collect `brm()` arguments into a tidy **brm_call** object
 #'
 #' Internal helper used at the very top of `brm()`.
@@ -47,7 +47,6 @@ create_brm_call <- function(...) {
   class(brm_call) <- c("brm_call" , "list")
   brm_call
 }
-
 #' Checks if argument is a \code{brm_call} object
 #'
 #' @param x An \R object
@@ -56,21 +55,19 @@ create_brm_call <- function(...) {
 is.brm_call <- function(x) {
   inherits(x, "brm_call")
 }
-
 #' Compare two brm_call if they are identical using hash value whcih was created
 #' @noRd
 identical_brm_calls <- function(c1, c2){
   if (!is.brm_call(c1) || !is.brm_call(c2))  {
     stop2("Cannot compare other types than `brm_call`", .subclass = "brms_invalid_brm_call")
   }
-  if (is.null(c1$model_hash) || is.null(c2$model_hash)) {
-    # warning2("Using `all.equal.list` fallback because `model_hash` was not computed.")
-    return(all.equal.list(c1, c2))
+  if (is.null(c1$hash) || is.null(c2$hash)) {
+    stop2(" We cannot compare brm_call objects because either or both has no hash yet! ")
+    # warning("Using `all.equal.list` fallback because `hash` was not computed.")
+    # return(all.equal.list(c1, c2))
   }
-  # TODO will be checking hash of brm_call later
-  return(all.equal.list(c1, c2))
+  c1$hash == c2$hash
 }
-
 #' Checks if two brm_call objects are equal
 #'
 #' @param target A \code{brm_call} object
@@ -81,7 +78,10 @@ identical_brm_calls <- function(c1, c2){
 all.equal.brm_call <- function(target, current, ...) {
   identical_brm_calls(target, current)
 }
-
+#' @export
+`==.brm_call` <- function(target, current) {
+  identical_brm_calls(target, current)
+}
 #' @export
 print.brm_call <- function(x, ...) {
   # helper: safe extraction by name (case-insensitive)
@@ -99,7 +99,6 @@ print.brm_call <- function(x, ...) {
         paste(deparse(formula, nlines = 1L), collapse = " "),
         "\n", sep = "")
   }
-
   if (!is.null(data)) {
     dclass <- class(data)[1L]
     drows  <- tryCatch(NROW(data), error = function(e) NA_integer_)
@@ -107,7 +106,6 @@ print.brm_call <- function(x, ...) {
     cat("  Data    : ", dclass,
         " [", drows, " x ", dcols, "]\n", sep = "")
   }
-
   if (!is.null(family)) {
     fam <- if (inherits(family, "family")) family$family else as.character(family)
     cat("  Family  : ", fam, "\n", sep = "")
@@ -120,7 +118,6 @@ print.brm_call <- function(x, ...) {
     cat("  Other arguments (", sum(keep), "):\n", sep = "")
     for (nm in names(x)[keep]) {
       val <- x[[nm]]
-
       # tiny preview of the value
       summary <- if (is.atomic(val) && length(val) == 1) {
         as.character(val)
@@ -134,7 +131,6 @@ print.brm_call <- function(x, ...) {
   }
   invisible(x)
 }
-
 #' @export
 summary.brm_call <- function(object, ...) {
   cat("Summary of <brm_call>\n")

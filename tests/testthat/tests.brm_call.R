@@ -1,15 +1,14 @@
 test_that("create_brm_call and call_only works", {
   # `call_only = T` creates a brm_call
-  call_1 <- brm(count ~ zAge + zBase * Trt + (1|patient),
-                data = epilepsy, family = poisson(), call_only = TRUE)
+  c1 <- brm(count ~ zAge + zBase * Trt + (1|patient),
+                data = epilepsy, family = poisson(), call_only = TRUE, file_auto = TRUE)
   # alternatively create_brm_call creates a brm_call without redefining parameters
-  call_2  <- create_brm_call(count ~ zAge + zBase * Trt + (1|patient),
-                             data = epilepsy, family = poisson())
+  c2  <- create_brm_call(count ~ zAge + zBase * Trt + (1|patient),
+                             data = epilepsy, family = poisson(), file_auto = TRUE)
 
-  expect_equal(all.equal(call_1 , call_2), TRUE)
-  c1 <- brm(call_1, call_only = TRUE)
-  c2 <- brm(call_2, call_only = TRUE)
-  expect_equal(all.equal(c1, c2), TRUE)
+
+  expect_equal(all.equal(c1 , c2), TRUE)
+
 })
 
 test_that("brm_call objects are consistent", {

@@ -1,3 +1,4 @@
+
 #' Fit Bayesian Generalized (Non-)Linear Multivariate Multilevel Models
 #'
 #' Fit Bayesian generalized (non-)linear multivariate multilevel models
@@ -231,6 +232,14 @@
 #'   (e.g., initial values, number of iterations, control arguments, ...). A
 #'   known limitation is that a refit will be triggered if within-chain
 #'   parallelization is switched on/off.
+#' @param file_auto Logical. If \code{TRUE}, the \code{file} argument is
+#'   automatically generated based on a hash of the model-relevant arguments
+#'   (e.g., formula, data, priors). Parameters that do not affect the model
+#'   outcome are omitted from the hash. When \code{file_auto = TRUE}, the
+#'   resulting file name is used for caching the model fit, and the behavior of
+#'   \code{file_refit} is implicitly set to \code{"on_change"} to ensure the model
+#'   is re-used only when appropriate. This option is useful for avoiding
+#'   redundant model fitting during development or repeated runs.
 #' @param empty Logical. If \code{TRUE}, the Stan model is not created
 #'   and compiled and the corresponding \code{'fit'} slot of the \code{brmsfit}
 #'   object will be empty. This is useful if you have estimated a brms-created
@@ -460,16 +469,20 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
                 seed = NA, save_model = NULL, stan_model_args = list(),
                 file = NULL, file_compress = TRUE,
                 file_refit = getOption("brms.file_refit", "never"),
+                file_auto = getOption("brms.file_auto", FALSE),
                 empty = FALSE, rename = TRUE, call_only = FALSE, ...) {
-
   call_only <- as_one_logical(call_only)
+  # a = update_call_test(formula, .create_brm_call(...), match.call())
+  # return(a)
   # if called with a `brm_call` object handle it first
   if (is.brm_call(formula)) {
-    brm_call <- formula
+    call <- formula
+    call <-  update_call(call, .create_brm_call(...), match.call())
     if (call_only) {
-      return(brm_call)
+      call <- create_filename_auto(call)
+      return(call)
     }
-    return(.brm(brm_call))
+    return(.brm(call))
   }
   file_refit <- match.arg(file_refit, file_refit_options())
   algorithm <- match.arg(algorithm, algorithm_choices())
@@ -488,19 +501,37 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
   seed <- as_one_numeric(seed, allow_na = TRUE)
   empty <- as_one_logical(empty)
   rename <- as_one_logical(rename)
-
   # collect arguments from this environment as brm_call
   call <- .create_brm_call(...)
+  call <- create_filename_auto(call)
+  call$mcall <- match.call()
   if (call_only) {
     return(call)
   }
   .brm(call)
 }
 
+#' Update brm_call if given with arguments
+#' @noRd
+update_call <- function(call, dots, mcall){
+  # brm was called with a brm_call object so we should
+  # overwrite if some arguments were given explicitely
+  for(name in names(mcall)){
+    if(nzchar(name) & name != "formula"){
+      call[[name]] <- dots[[name]]
+    }
+  }
+  call
+}
+update_call_test <- function(call, dots, mcall){
+  # brm was called with a brm_call object so we should
+  # overwrite if some arguments were given explicitely
+  nlist(call, dots, mcall)
+}
 #' Internal engine to evaluate and fit a *brms* model
 #' @noRd
 .brm <- function(call) {
-
+  call <- create_filename_auto(call)
   # optionally load brmsfit from file
   # Loading here only when we should directly load the file.
   # The "on_change" option needs sdata and scode to be built
@@ -510,7 +541,6 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
       return(x)
     }
   }
-
   # initialize brmsfit object
   if (is.brmsfit(call$fit)) {
     # re-use existing brmsfit
@@ -542,13 +572,11 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
     )
     family <- get_element(formula, "family")
     bterms <- brmsterms(formula)
-
     data2  <- validate_data2(
       call$data2, bterms = bterms,
       get_data2_autocor(formula),
       get_data2_cov_ranef(formula)
     )
-
     data <- validate_data(
       call$data, bterms = bterms,
       data2 = data2, knots = call$knots,
@@ -556,12 +584,10 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
       data_name = substitute_name(data)
     )
     bframe <- brmsframe(bterms, data)
-
     prior <- .validate_prior(
       call$prior, bframe = bframe,
       sample_prior = call$sample_prior
     )
-
     stanvars <- validate_stanvars(call$stanvars, stan_funs = call$stan_funs)
     save_pars <- validate_save_pars(
       call$save_pars, save_ranef = call$save_ranef,
@@ -581,7 +607,6 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
       control = call$control, stan_model_args = call$stan_model_args
     )
     stan_args <- c(stan_args, call$dot_args)
-
     x <- brmsfit(
       formula = formula, data = data, data2 = data2, prior = prior,
       stanvars = stanvars, model = model, algorithm = call$algorithm,
@@ -591,19 +616,16 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
       stan_args = stan_args,
     )
     exclude <- exclude_pars(x, bframe = bframe)
-
     # generate Stan data before compiling the model to avoid
     # unnecessary compilations in case of invalid data
     sdata <- .standata(
       bframe, data = data, prior = prior, data2 = data2,
       stanvars = stanvars, threads = call$threads
     )
-
     if (call$empty) {
       # return the brmsfit object with an empty 'fit' slot
       return(x)
     }
-
     if (!is.null(call$file) && call$file_refit == "on_change") {
       x_from_file <- read_brmsfit(call$file)
       if (!is.null(x_from_file)) {
@@ -616,7 +638,6 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
         }
       }
     }
-
     # compile the Stan model
     compile_args <- nlist(
       model, backend = call$backend, threads = call$threads,
@@ -626,7 +647,6 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
     model <- do_call(compile_model, compile_args)
     backend <- call$backend
   }
-
   # fit the Stan model
   fit_args <- c(
     nlist(
