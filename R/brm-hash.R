@@ -1,13 +1,13 @@
 #' Internal helper: Digest wrapper used by all hash methods
 #' @noRd
 .brms_digest <- function(object, algo = "xxhash64") {
-  .require_package("digest")
+  require_package("digest")
   digest::digest(object, algo = algo, serialize = TRUE)
 }
 
 #' Internal helper: Recursively remove attached environments from an object
 #' @noRd
-.remove_env_attrs <- function(obj) {
+remove_env_attrs <- function(obj) {
   if (!is.null(attr(obj, ".Environment"))) {
     attr(obj, ".Environment") <- NULL
   }
@@ -15,7 +15,7 @@
     environment(obj) <- emptyenv()
   }
   if (is.list(obj) || is.pairlist(obj)) {
-    obj <- lapply(obj, .remove_env_attrs)
+    obj <- lapply(obj, remove_env_attrs)
   }
   obj
 }

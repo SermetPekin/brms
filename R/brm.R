@@ -472,13 +472,12 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
                 file_auto = getOption("brms.file_auto", FALSE),
                 empty = FALSE, rename = TRUE, call_only = FALSE, ...) {
   call_only <- as_one_logical(call_only)
-  # a = update_call_test(formula, .create_brm_call(...), match.call())
-  # return(a)
+
   # if called with a `brm_call` object handle it first
   if (is.brm_call(formula)) {
     call <- formula
-    call <-  update_call(call, .create_brm_call(...), match.call())
     if (call_only) {
+      # if file_auto is TRUE it will create a hash for the call
       call <- create_filename_auto(call)
       return(call)
     }
@@ -503,35 +502,19 @@ brm <- function(formula, data= NULL, family = gaussian(), prior = NULL,
   rename <- as_one_logical(rename)
   # collect arguments from this environment as brm_call
   call <- .create_brm_call(...)
+  # if file_auto is TRUE it will create a hash for the call
   call <- create_filename_auto(call)
-  call$mcall <- match.call()
+
   if (call_only) {
     return(call)
   }
   .brm(call)
 }
 
-#' Update brm_call if given with arguments
-#' @noRd
-update_call <- function(call, dots, mcall){
-  # brm was called with a brm_call object so we should
-  # overwrite if some arguments were given explicitely
-  for(name in names(mcall)){
-    if(nzchar(name) & name != "formula"){
-      call[[name]] <- dots[[name]]
-    }
-  }
-  call
-}
-update_call_test <- function(call, dots, mcall){
-  # brm was called with a brm_call object so we should
-  # overwrite if some arguments were given explicitely
-  nlist(call, dots, mcall)
-}
 #' Internal engine to evaluate and fit a *brms* model
 #' @noRd
 .brm <- function(call) {
-  call <- create_filename_auto(call)
+
   # optionally load brmsfit from file
   # Loading here only when we should directly load the file.
   # The "on_change" option needs sdata and scode to be built
