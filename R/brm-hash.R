@@ -38,6 +38,7 @@ remove_env_attrs <- function(obj) {
 hash_brm_arg <- function(x, ...){
   UseMethod("hash_brm_arg")
 }
+
 ## ------------------------------------------------------------------
 ##  Methods for major classes
 ## ------------------------------------------------------------------
@@ -46,6 +47,7 @@ hash_brm_arg.formula <- function(x, ...) {
   environment(x) <- emptyenv()
   .brms_digest(as.character(x), ...)
 }
+
 #' @export
 hash_brm_arg.brmsformula <- function(x, ...) {
   x$formula <- hash_brm_arg(x$formula, ...)
@@ -55,19 +57,23 @@ hash_brm_arg.brmsformula <- function(x, ...) {
     x$nlpars <- sort(x$nlpars)
   .brms_digest(x, ...)
 }
+
 #' @export
 hash_brm_arg.mvbrmsformula <- function(x, ...) {
   x$forms <- lapply(x$forms[order(names(x$forms))], hash_brm_arg, ...)
   .brms_digest(x, ...)
 }
+
 #' @export
 hash_brm_arg.family <- function(x, ...) {
   .brms_digest(list(family = x$family, link = x$link), ...)
 }
+
 #' @export
 hash_brm_arg.character <- function(x, ...) {
   .brms_digest(x)
 }
+
 #' @export
 hash_brm_arg.data.frame <- function(x,
                                     threshold = 1e7,
@@ -80,18 +86,23 @@ hash_brm_arg.data.frame <- function(x,
     .brms_digest(remove_env_attrs(x), algo = algo)
   }
 }
+
 #' @export
 hash_brm_arg.function <- function(x, ...) {
   .brms_digest(deparse(body(x), width.cutoff = 500L), ...)
 }
+
 #' @export
 hash_brm_arg.language <- function(x, ...) {
   .brms_digest(deparse(x, width.cutoff = 500L), ...)
 }
+
 #' @export
 hash_brm_arg.call <- function(x, ...) hash_brm_arg.language(x, ...)
+
 #' @export
 hash_brm_arg.expression <- function(x, ...) hash_brm_arg.language(x, ...)
+
 #' @export
 hash_brm_arg.list <- function(x, ...) {
   ## data.frames have their own method
@@ -113,23 +124,22 @@ hash_brm_arg.list <- function(x, ...) {
   x <- lapply(x, hash_brm_arg, ...)   # S3 dispatch handles each element
   .brms_digest(x, ...)
 }
+
 #' @export
 hash_brm_arg.default <- function(x, ...) {
   .brms_digest(remove_env_attrs(x), ...)
 }
 
-
-
 #' Stable hash for a set of brm() arguments
 #'
-#' @param args_list A **named** list containing the arguments that uniquely
+#' @param call **brm_call** object
 #'   define a model (e.g., formula, data, family, prior, …).
 #' @param algo      Digest algorithm passed to \code{digest}.
 #' @return          A character hash key.
 #' @export
 hash_brm_call_master <- function(call, algo = "xxhash64") {
   if (!is.brm_call(call)){
-    stop2("args_list must be a *named* list" )
+    stop2("args_list must be a *brm_call* object" )
   }
   # order
   args_list <- call[order(names(call))]
@@ -156,6 +166,9 @@ hash_brm_call_master <- function(call, algo = "xxhash64") {
                                     backend_version ) )
   call
 }
+
+#' get version of backend
+#' @noRd
 get_backend_version<- function(backend){
   if(backend == "rstan" ){
     v = utils::packageVersion("rstan")
@@ -168,6 +181,7 @@ get_backend_version<- function(backend){
   }
   v
 }
+
 #' Internal helper: create file argument if file_auto is TRUE
 #' @noRd
 create_filename_auto <- function(call) {
@@ -183,4 +197,3 @@ create_filename_auto <- function(call) {
   call$file_refit <- "on_change"
   call
 }
-

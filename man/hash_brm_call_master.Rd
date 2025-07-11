@@ -7,10 +7,10 @@
 hash_brm_call_master(call, algo = "xxhash64")
 }
 \arguments{
-\item{algo}{Digest algorithm passed to \code{digest}.}
-
-\item{args_list}{A **named** list containing the arguments that uniquely
+\item{call}{**brm_call** object
 define a model (e.g., formula, data, family, prior, …).}
+
+\item{algo}{Digest algorithm passed to \code{digest}.}
 }
 \value{
 A character hash key.
