@@ -36,7 +36,6 @@ hash_brm_arg <- function(x, ...) {
   UseMethod("hash_brm_arg")
 }
 
-
 #' Hashing method for formula objects
 #' Strips the environment from the formula and hashes its character
 #' representation. Used internally by \code{hash_brm_arg()}.
@@ -48,7 +47,6 @@ hash_brm_arg.formula <- function(x, ...) {
   environment(x) <- emptyenv()
   .brms_digest(as.character(x), ...)
 }
-
 
 #' @export
 hash_brm_arg.brmsformula <- function(x, ...) {
@@ -128,8 +126,77 @@ hash_brm_arg.list <- function(x, ...) {
 }
 
 #' @export
+hash_brm_arg.stanfit <- function(x, ...) {
+  payload <- list(name = x@model_name, date = x@date,
+                  model_pars = a@model_pars)
+  hash_brm_arg(payload)
+}
+
+#' hash function for brmsfit with cmdstanr
+#' @noRd
+.hash_brm_arg_cmdstanr <- function(x){
+  fit_hash <- hash_brm_arg(x$fit)
+  payload <- list(model = x$model, algorithm = x$algorithm,
+                  file = x$file, fith_hash = fit_hash)
+  hash_brm_arg(payload)
+}
+
+#' hash function for brmsfit with rstan
+#' @noRd
+.hash_brm_arg_rstan <- function(x){
+  fit_hash <- hash_brm_arg(x$fit)
+  payload <- list(model = x$model, algorithm = x$algorithm,
+               file = x$file, fith_hash =  fit_hash)
+  hash_brm_arg(payload)
+}
+
+#' hash function for brmsfit with mock
+#' @noRd
+.hash_brm_arg_rstan <- function(x){
+  fit_hash <- hash_brm_arg(x$fit)
+  payload <- list(model = x$model, algorithm = x$algorithm,
+                  file = x$file, fith_hash =  fit_hash)
+  hash_brm_arg(payload)
+}
+
+#' @export
+hash_brm_arg.brmsfit <- function(x, ...) {
+
+  backend <- as_one_character(x$backend)
+  .parse_model <- get(paste0(".hash_brm_arg_", backend), mode = "function")
+  .parse_model(x)
+}
+
+#' @export
 hash_brm_arg.default <- function(x, ...) {
   .brms_digest(remove_env_attrs(x), ...)
+}
+
+#' Internal helper: Extract identifying metadata from a brmsfit object
+#'
+#' Produces a minimal, stable signature from a brmsfit object to distinguish
+#' fits during hashing or logging, without including volatile components like
+#' draws or timing info.
+#'
+#' @param fit A \code{brmsfit} object.
+#'
+#' @return A named list of identifying metadata, or character string "NULL" if fit is NULL.
+#'
+#' @noRd
+.identify_brm_fit <- function(bfit) {
+  if (is.null(bfit)) {
+    return("NULL")
+  }
+
+  stopifnot(inherits(bfit, "brmsfit"))
+
+  list(
+    class = class(bfit),
+    model_name = bfit$model_name,
+    backend = bfit$backend,
+    stan_model = bfit$stan_args$model %||% NULL,
+    version = tryCatch(packageVersion("brms"), error = function(e) NULL)
+  )
 }
 
 #' Stable hash for a set of \code{brm()} arguments
@@ -145,16 +212,13 @@ hash_brm_arg.default <- function(x, ...) {
 #'
 #' @export
 hash_brm_call_master <- function(call, algo = "xxhash64") {
+
   if (!is.brm_call(call)) {
     stop2("call must be a *brm_call* object")
   }
 
   args_list <- call[order(names(call))]
-  args_list$mcall <- NULL
-  args_list$fit <- NULL
-
   hashed_parts <- lapply(args_list, hash_brm_arg, algo = algo)
-
   brms_version <- packageVersion("brms")
   backend_version <- get_backend_version(call$backend)
 

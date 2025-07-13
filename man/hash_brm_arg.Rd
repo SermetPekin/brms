@@ -2,22 +2,26 @@
 % Please edit documentation in R/brm-hash.R
 \name{hash_brm_arg}
 \alias{hash_brm_arg}
-\title{Class-aware hashing for individual brm() arguments}
+\title{Class-aware hashing for individual \code{brm()} arguments
+Dispatches to methods that normalize and hash each argument according to
+its class (e.g., formula, family, data.frame). All methods ultimately call
+\code{digest::digest()}, but strip environments and reorder components so
+that equivalent inputs produce identical hashes.}
 \usage{
 hash_brm_arg(x, ...)
 }
 \arguments{
-\item{x}{A single argument from a brm() call.}
+\item{x}{A single argument from a \code{brm()} call.}
 
-\item{...}{Passed on to class-specific methods (e.g. \code{algo},
-\code{threshold}).}
+\item{...}{Passed to class-specific methods (e.g., \code{algo}, \code{threshold}).}
 }
 \value{
 A character scalar hash.
 }
 \description{
-Dispatches to methods that normalise and hash each argument according to
-its class (formula, family, data.frame, …).  All methods ultimately call
+Class-aware hashing for individual \code{brm()} arguments
+Dispatches to methods that normalize and hash each argument according to
+its class (e.g., formula, family, data.frame). All methods ultimately call
 \code{digest::digest()}, but strip environments and reorder components so
 that equivalent inputs produce identical hashes.
 }

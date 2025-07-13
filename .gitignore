@@ -20,6 +20,7 @@ tests/local/models_1.2.0.Rda
 # Ignore folders or patterns
 ignore_*/
 cache_*.*
+cache-*.*
 
 # Optional: temp and OS files
 *.tmp

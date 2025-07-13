@@ -2,19 +2,20 @@
 % Please edit documentation in R/brm-hash.R
 \name{hash_brm_call_master}
 \alias{hash_brm_call_master}
-\title{Stable hash for a set of brm() arguments}
+\title{Stable hash for a set of \code{brm()} arguments}
 \usage{
 hash_brm_call_master(call, algo = "xxhash64")
 }
 \arguments{
-\item{call}{**brm_call** object
-define a model (e.g., formula, data, family, prior, …).}
+\item{call}{A \code{brm_call} object defining a model (e.g., formula, data,
+family, prior, etc.).}
 
-\item{algo}{Digest algorithm passed to \code{digest}.}
+\item{algo}{Digest algorithm passed to \code{digest::digest()}.}
 }
 \value{
-A character hash key.
+The same \code{brm_call} object, augmented with a \code{$hash} field.
 }
 \description{
-Stable hash for a set of brm() arguments
+Hashes the relevant elements of a \code{brm_call} object in a consistent and
+order-independent way, producing a stable identifier for the model definition.
 }
